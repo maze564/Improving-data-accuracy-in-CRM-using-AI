@@ -1,104 +1,49 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from google.colab import drive
+from sklearn.preprocessing import LabelEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
 
-drive.mount('/content/drive')
+# Step 1: Load the dataset
+file_path = 'opportunity_history.csv'  # Make sure this file is in the same folder
+df = pd.read_csv(file_path)
 
-file_path_old = '/content/drive/My Drive/Dataset/CRM_Data.xlsx'
-file_path_cleaned = '/content/drive/My Drive/cleaned_data.xlsx'
+print("✅ Dataset Loaded")
+print("📌 Columns:", df.columns.tolist())
+print(df.head())
 
-data_old = pd.read_excel(file_path_old)
-data_cleaned = pd.read_excel(file_path_cleaned)
+# Step 2: Encode categorical columns
+label_encoders = {}
+for col in df.select_dtypes(include='object').columns:
+    df[col] = df[col].astype(str)
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col])
+    label_encoders[col] = le
 
-print("Original Dataset Loaded:")
-print(data_old.head())
-print("\nCleaned Dataset Loaded:")
-print(data_cleaned.head())
+print("✅ Categorical columns encoded")
 
-# Visualization 1: Missing Values Count
-plt.figure(figsize=(8, 6))
-data_old.isnull().sum().plot(kind='bar', color='red', edgecolor='black', alpha=0.7, label='Original Data')
-data_cleaned.isnull().sum().plot(kind='bar', color='green', edgecolor='black', alpha=0.7, label='Cleaned Data')
-plt.title("Missing Values per Column", fontsize=14)
-plt.xlabel("Columns", fontsize=12)
-plt.ylabel("Count of Missing Values", fontsize=12)
-plt.xticks(rotation=45)
-plt.legend()
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.show()
+# Step 3: Impute missing values
+imputer = SimpleImputer(strategy='most_frequent')
+df_imputed = pd.DataFrame(imputer.fit_transform(df), columns=df.columns)
 
-# Visualization 2: Duplicate Records Count
-duplicates_old = data_old.duplicated().sum()
-duplicates_cleaned = data_cleaned.duplicated().sum()
-plt.figure(figsize=(6, 4))
-plt.bar(["Original Data", "Cleaned Data"], [duplicates_old, duplicates_cleaned], color=["red", "green"], edgecolor="black")
-plt.title("Duplicate Records Count", fontsize=14)
-plt.ylabel("Count", fontsize=12)
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.show()
+# Step 4: Set the target column
+target_column = 'IsWon'
 
-# Visualization 3: Age Distribution Before & After Cleaning
-if 'age' in data_old.columns and 'age' in data_cleaned.columns:
-    plt.figure(figsize=(10, 5))
-    sns.histplot(data_old['age'].dropna(), kde=True, color='red', bins=20, label='Original Data')
-    sns.histplot(data_cleaned['age'].dropna(), kde=True, color='green', bins=20, label='Cleaned Data')
-    plt.title("Age Distribution Before & After Cleaning")
-    plt.xlabel("Age")
-    plt.ylabel("Frequency")
-    plt.legend()
-    plt.grid(axis='y', linestyle='--')
-    plt.show()
+X = df_imputed.drop(target_column, axis=1)
+y = df_imputed[target_column]
 
-# Visualization 4: Email Domain Distribution Before & After Cleaning
-if 'email' in data_old.columns and 'email' in data_cleaned.columns:
-    data_old['email_domain'] = data_old['email'].str.split('@').str[-1]
-    data_cleaned['email_domain'] = data_cleaned['email'].str.split('@').str[-1]
+# Step 5: Split data into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    data_old['email_domain'].value_counts().nlargest(10).plot(kind='bar', color='red', edgecolor='black')
-    plt.title("Top Email Domains - Original Data")
-    plt.xticks(rotation=45)
-    plt.grid(axis='y', linestyle='--')
+# Step 6: Train the model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
 
-    plt.subplot(1, 2, 2)
-    data_cleaned['email_domain'].value_counts().nlargest(10).plot(kind='bar', color='green', edgecolor='black')
-    plt.title("Top Email Domains - Cleaned Data")
-    plt.xticks(rotation=45)
-    plt.grid(axis='y', linestyle='--')
-
-    plt.tight_layout()
-    plt.show()
-
-# Visualization 5: City Distribution Comparison
-if 'city' in data_old.columns and 'city' in data_cleaned.columns:
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    data_old['city'].value_counts().nlargest(10).plot(kind='bar', color='red', edgecolor='black')
-    plt.title("Top 10 Cities - Original Data")
-    plt.xticks(rotation=45)
-    plt.ylabel("Count")
-    plt.grid(axis='y', linestyle='--')
-
-    plt.subplot(1, 2, 2)
-    data_cleaned['city'].value_counts().nlargest(10).plot(kind='bar', color='green', edgecolor='black')
-    plt.title("Top 10 Cities - Cleaned Data")
-    plt.xticks(rotation=45)
-    plt.ylabel("Count")
-    plt.grid(axis='y', linestyle='--')
-
-    plt.tight_layout()
-    plt.show()
-
-summary = {
-    "Total Records": [len(data_cleaned)],
-    "Duplicate Records": [duplicates_cleaned],
-    "Missing Values (Total)": [data_cleaned.isnull().sum().sum()]
-}
-summary_df = pd.DataFrame(summary)
-summary_file_path = '/content/drive/My Drive/summary_report.xlsx'
-summary_df.to_excel(summary_file_path, index=False)
-print(f"\nSummary report saved to: {summary_file_path}")
-
-print("CRM Data Visualization Completed.")
+# Step 7: Evaluate the model
+print("\n✅ Model Trained")
+print("🎯 Accuracy:", accuracy_score(y_test, y_pred))
+print("\n📄 Classification Report:\n", classification_report(y_test, y_pred))
